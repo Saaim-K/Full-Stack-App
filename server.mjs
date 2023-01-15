@@ -17,7 +17,7 @@ app.use(express.json())
 app.use(cookieParser())
 mongoose.connect(mongodbURI)
 app.use(cors({
-    origin: ['http://localhost:3000', "*"],
+    origin: ['http://localhost:3000', 'https://localhost:3000', "*"],
     credentials: true
 }));
 
@@ -88,8 +88,18 @@ app.post("/login", (req, res) => {
                 if (user) {
                     const isValid = await bcrypt.compare(password, user.password)
                     if (isValid) {
-                        const token = jwt.sign({ _id: user._id, exp: Math.floor(Date.now() / 1000) + (60 * 60) }, SECRET)
-                        res.cookie("Token", token, { maxAge: 86_400_000, httpOnly: true })//secure:true for https request only
+                        const token = jwt.sign({
+                            _id: user._id,
+                            email: data.email,
+                            iat: Math.floor(Date.now() / 1000) - 30,
+                            exp: Math.floor(Date.now() / 1000) + (60 * 60)
+                        }, SECRET)
+                        res.cookie('Token', token, {
+                            maxAge: 86_400_000,
+                            httpOnly: true,
+                            sameSite: 'none',
+                            secure: true
+                        });
                         res.status(200).send('User Found')
                         console.log("User Found.", user)
                     } else {
@@ -116,7 +126,11 @@ app.post("/login", (req, res) => {
 
 // ----------------------------------- Logout -----------------------------------
 app.post("/logout", (req, res) => {
-    res.cookie('Token', '', { maxAge: 1, httpOnly: true, sameSite: "none", secure: true });
+    res.clearCookie('Token', {
+        httpOnly: true,
+        sameSite: 'none',
+        secure: true
+    })
     res.status(200).send('Logged Out')
     console.log("Logged Out.")
 })
@@ -138,7 +152,12 @@ app.use((req, res, next) => {
             const currentTime = new Date().getTime() / 1000;
             if (decodedData.exp < currentTime) {
                 res.status(401);
-                res.cookie('Token', '', { maxAge: 1, httpOnly: true, sameSite: "none", secure: true });
+                res.cookie('Token', '', {
+                    maxAge: 1,
+                    httpOnly: true,
+                    sameSite: 'none',
+                    secure: true
+                });
                 res.send({ message: "Token Expired" })
             } else {
                 console.log("Token Approved");
